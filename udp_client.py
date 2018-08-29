@@ -26,7 +26,6 @@ class MachineUDPClient:
 
         # 心跳包
         self.heart_beat = {
-            's_id': random.randint(10, 99),
             'm_id': self.MACHINE_ID
         }
 
@@ -40,12 +39,11 @@ class MachineUDPClient:
         self.fail_count = 0                             #
 
     def _msg_handler(self, msg):
-        if len(msg.keys()) == 1 and msg.get('s_id') == self.heart_beat['s_id']:
+        if len(msg.keys()) == 0:
             self.mutex.acquire()
             self.connecting_flag = True
             self.fail_count = 0
             self.mutex.release()
-            self.heart_beat = {'s_id': random.randint(10, 99)}
             return None
 
         if msg.get('code'):
@@ -88,6 +86,7 @@ class MachineUDPClient:
     def _waiting_msg(self):
         while True:
             msg, address = self.client.recvfrom(1024)
+            print(msg, address)
             # self.server_address = address
             msg = json.loads(msg.decode('utf-8'))
             self._msg_handler(msg)

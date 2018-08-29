@@ -22,21 +22,30 @@ class UDPServer(object):
         while True:
             client_msg, client_addr = self.queue.get()
             client_msg = json.loads(client_msg.decode('utf-8'))
-            s_id = client_msg.get('s_id')
-            if client_msg.get('m_id'):
+
+            # 如果有机器id则覆盖（后台无法覆盖机器地址)
+            if client_msg.get('m_id') and client_addr[0] != '127.0.0.1':
                 self.clients[client_msg['m_id']] = client_addr
 
-            if (len(client_msg.keys()) == 1 or len(client_msg.keys()) == 2) and s_id:
-                send_msg = {'s_id': s_id}
+            # 如果是心跳包
+            if len(client_msg.keys()) == 1 and client_msg.get('m_id'):
+                send_msg = {}
                 self.server.sendto(json.dumps(send_msg).encode('utf-8'), client_addr)
 
+            # 如果是后台发过来的消息
             elif client_addr[0] == '127.0.0.1':
+
+                # 随机生成s_id
                 s_id = random.randint(10, 99)
                 client_msg['s_id'] = s_id
+                # 获取m_id
                 m_id = client_msg.get('m_id')
+                # 没有该机器地址，直接忽略
                 if m_id not in self.clients:
                     continue
+
                 machine_addr = self.clients[m_id]
+                print('目标地址:', machine_addr)
 
                 self.ack.setdefault(m_id, {})
                 self.ack[m_id] = {
@@ -45,6 +54,7 @@ class UDPServer(object):
                 }
                 if machine_addr:
                     client_msg = json.dumps(client_msg).encode('utf-8')
+                    print('转发后台消息:', client_msg)
                     self.server.sendto(client_msg, machine_addr)
                     threading.Timer(1, self.timed_task, (m_id, s_id, client_msg, machine_addr, 3)).start()
             elif client_msg.get('m_id') and client_msg.get('s_id') and client_msg.get('type') == 'ack':
