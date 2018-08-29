@@ -26,7 +26,11 @@ class UDPServer(object):
             if client_msg.get('m_id'):
                 self.clients[client_msg['m_id']] = client_addr
 
-            if client_addr[0] == '127.0.0.1':
+            if (len(client_msg.keys()) == 1 or len(client_msg.keys()) == 2) and s_id:
+                send_msg = {'s_id': s_id}
+                self.server.sendto(json.dumps(send_msg).encode('utf-8'), client_addr)
+
+            elif client_addr[0] == '127.0.0.1':
                 s_id = random.randint(10, 99)
                 client_msg['s_id'] = s_id
                 m_id = client_msg.get('m_id')
@@ -43,11 +47,6 @@ class UDPServer(object):
                     client_msg = json.dumps(client_msg).encode('utf-8')
                     self.server.sendto(client_msg, machine_addr)
                     threading.Timer(1, self.timed_task, (m_id, s_id, client_msg, machine_addr, 3)).start()
-
-            elif (len(client_msg.keys()) == 1 or len(client_msg.keys()) == 2) and s_id:
-                send_msg = {'s_id': s_id}
-                self.server.sendto(json.dumps(send_msg).encode('utf-8'), client_addr)
-
             elif client_msg.get('m_id') and client_msg.get('s_id') and client_msg.get('type') == 'ack':
                 m_id = client_msg['m_id']
                 s_id = client_msg['s_id']
@@ -59,6 +58,7 @@ class UDPServer(object):
         p1.start()
         while True:
             data = self.server.recvfrom(8196)
+            print(data)
             self.queue.put(data)
 
     def timed_task(self, machine_id, session, msg, addr, count):
