@@ -2,22 +2,24 @@ import socket
 import threading
 import json
 import os
+import sys
 from signal import SIGTERM
-import argparse
 import random
 import multiprocessing
 
 
 class UDPServer(object):
-    def __init__(self, args, pid_file=None):
-        self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.server.bind(('', args.port))
+    def __init__(self, port, pid_file=None, sub_pid_file=None):
+        self.server = None
+        self.port = port
         self.pid_file = pid_file
+        self.sub_pid_file = sub_pid_file
         self.queue = multiprocessing.Queue()
         self.clients = {}
         self.ack = {}
 
     def handler(self):
+        self._write_pid(self.sub_pid_file)
         while True:
             message, address = self.queue.get()
             ip, port = address
@@ -55,6 +57,9 @@ class UDPServer(object):
                     self.ack[message['m_id']]['status'] = 1
 
     def run(self):
+        self._write_pid(self.pid_file)
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.server.bind(('', self.port))
         p1 = multiprocessing.Process(target=self.handler)
         p1.start()
         while True:
@@ -76,24 +81,58 @@ class UDPServer(object):
             self.server.sendto(msg, address)
             threading.Timer(1, self.resend, (machine_id, session, msg, address, count)).start()
 
-    # def _write_pid(self):
-    #     if self.pid_file:
-    #         with open(self.pid_file) as f:
-    #             pid = int(f.read().strip())
-    #
-    #     if pid:
-    #         os.kill(pid, SIGTERM)
+    @staticmethod
+    def _write_pid(file):
+        if os.path.exists(file):
+            print('process already running!start fail.')
+            exit(0)
+        with open(file, 'w') as f:
+            f.write(str(os.getpid()))
+
+    @staticmethod
+    def _read_pid(file):
+        if not os.path.exists(file):
+            print("%s does not exists." % file)
+            exit(0)
+
+        with open(file) as f:
+            pid = int(f.read().strip())
+        return pid
+
+    @staticmethod
+    def _remove_pid(file):
+        os.remove(file)
+
+    @property
+    def exists(self, file):
+        if os.path.exists(file):
+            return True
+        return False
+
+    def stop(self):
+        pid = self._read_pid(self.sub_pid_file)
+        if pid:
+            os.kill(pid, SIGTERM)
+            os.remove(self.sub_pid_file)
+
+        pid = self._read_pid(self.pid_file)
+        if pid:
+            os.kill(pid, SIGTERM)
+            os.remove(self.pid_file)
 
 
 if __name__ == '__main__':
-    parse = argparse.ArgumentParser(description='Use -h to see help')
-    parse.add_argument('-p', '--port', help='Add server port', default=8888, type=int)
-    parse.add_argument('-w', '--worker', help='Add thread worker', default=10, type=int)
-    # parse.add_argument('-s', '--stop', help='Kill the process', default=0, type=int)
-    args = parse.parse_args()
-    server = UDPServer(args)
-    # if args.stop:
-    #     print('stop the process...')
-    #     exit(0)
+    args = sys.argv
+    if len(args) == 2:
+        action = args[1]
+    else:
+        print('missing parameter.')
+        exit(0)
 
-    server.run()
+    server = UDPServer(pid_file='udp_main.pid', sub_pid_file='udp_sub.pid', port=8888)
+    if action == 'stop':
+        print('stop the process...')
+        server.stop()
+        exit(0)
+    if action == 'start':
+        server.run()
