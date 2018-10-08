@@ -13,6 +13,7 @@ class UDPServer(object):
         self.server = None
         self.port = port
         self.pid_file = pid_file
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.sub_pid_file = sub_pid_file
         self.queue = multiprocessing.Queue()
         self.clients = {}
@@ -81,17 +82,15 @@ class UDPServer(object):
             self.server.sendto(msg, address)
             threading.Timer(1, self.resend, (machine_id, session, msg, address, count)).start()
 
-    @staticmethod
-    def _write_pid(file):
-        if os.path.exists(file):
+    def _write_pid(self, file):
+        if os.path.exists(os.path.join(self.base_dir, file)):
             print('process already running!start fail.')
             exit(0)
         with open(file, 'w') as f:
             f.write(str(os.getpid()))
 
-    @staticmethod
-    def _read_pid(file):
-        if not os.path.exists(file):
+    def _read_pid(self, file):
+        if not os.path.exists(os.path.join(self.base_dir, file)):
             print("%s does not exists." % file)
             exit(0)
 
