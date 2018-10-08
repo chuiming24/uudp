@@ -12,9 +12,9 @@ class UDPServer(object):
     def __init__(self, port, pid_file=None, sub_pid_file=None):
         self.server = None
         self.port = port
-        self.pid_file = pid_file
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.sub_pid_file = sub_pid_file
+        self.pid_file = os.path.join(self.base_dir, pid_file)
+        self.sub_pid_file = os.path.join(self.base_dir, sub_pid_file)
         self.queue = multiprocessing.Queue()
         self.clients = {}
         self.ack = {}
@@ -82,15 +82,17 @@ class UDPServer(object):
             self.server.sendto(msg, address)
             threading.Timer(1, self.resend, (machine_id, session, msg, address, count)).start()
 
-    def _write_pid(self, file):
-        if os.path.exists(os.path.join(self.base_dir, file)):
+    @staticmethod
+    def _write_pid(file):
+        if os.path.exists(file):
             print('process already running!start fail.')
             exit(0)
         with open(file, 'w') as f:
             f.write(str(os.getpid()))
 
-    def _read_pid(self, file):
-        if not os.path.exists(os.path.join(self.base_dir, file)):
+    @staticmethod
+    def _read_pid(file):
+        if not os.path.exists(file):
             print("%s does not exists." % file)
             exit(0)
 
@@ -122,12 +124,10 @@ class UDPServer(object):
 
 if __name__ == '__main__':
     args = sys.argv
-    if len(args) == 2:
-        action = args[1]
-    else:
+    if len(args) != 2:
         print('missing parameter.')
         exit(0)
-
+    action = args[1]
     server = UDPServer(pid_file='udp_main.pid', sub_pid_file='udp_sub.pid', port=8888)
     if action == 'stop':
         print('stop the process...')
