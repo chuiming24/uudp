@@ -11,7 +11,7 @@ from config import SERVER_PORT, ATTEMPTS, BEAT_TIME, SERVER_URL, OPEN_CHEST_URL,
 
 
 class MachineUDPClient:
-    def __init__(self, name, url, port, beat_time=1, attempts=3):
+    def __init__(self, name, url, port, beat_time=1, attempts=3, bind_address=('0.0.0.0', 0)):
 
         self.mutex = threading.Lock()                   # 同步锁
         self.MACHINE_ID = name                          # 配置
@@ -23,7 +23,8 @@ class MachineUDPClient:
         port = port
         self.server_address = (host, port)              # 服务器地址
         self.client = ""                                # 保存UDP客户端实例
-
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.client.bind(bind_address)
         # 心跳包
         self.heart_beat = {
             'm_id': self.MACHINE_ID
@@ -79,10 +80,6 @@ class MachineUDPClient:
         t = threading.Thread(target=self._send_msg_to_background, args=(url, post_data))
         t.start()
 
-    def _init_socket(self, bind_addr=('0.0.0.0', 0)):
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.client.bind(bind_addr)
-
     def _waiting_msg(self):
         while True:
             msg, address = self.client.recvfrom(1024)
@@ -122,7 +119,6 @@ class MachineUDPClient:
                 fail_count -= 1
 
     def run(self):
-        self._init_socket()
         t1 = threading.Thread(target=self._waiting_msg)
         t1.setDaemon(True)
         t1.start()
@@ -140,7 +136,7 @@ class MachineUDPClient:
                     self.client.close()
                     break
 
-            # log('send a heart beat to server..')
+            log('send a heart beat to server..')
             self.client.sendto(json.dumps(self.heart_beat).encode('utf-8'), self.server_address)
             self.connecting_flag = False
             self.is_first = False
